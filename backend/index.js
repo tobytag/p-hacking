@@ -21,9 +21,29 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Health check
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'API server is running on Vercel' });
+import pool from './db.js';
+
+// Health check with DB status
+app.get('/api/health', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT NOW()');
+        res.json({
+            status: 'ok',
+            message: 'API server is running on Vercel',
+            db_status: 'connected',
+            timestamp: result.rows[0].now
+        });
+    } catch (err) {
+        console.error('Health check DB error:', err);
+        res.status(500).json({
+            status: 'error',
+            message: 'API running but DB failed',
+            db_error: err.message,
+            env_check: {
+                has_db_url: !!process.env.DATABASE_URL
+            }
+        });
+    }
 });
 
 // Routes

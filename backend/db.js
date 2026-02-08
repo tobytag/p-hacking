@@ -8,6 +8,11 @@ const { Pool } = pg;
 // Use a global variable to cache the pool instance across serverless invocations
 let pool;
 
+if (!process.env.DATABASE_URL) {
+    console.error("❌ CRITICAL ERROR: DATABASE_URL environment variable is MISSING!");
+    // We don't throw here to allow the app to start, but DB calls will fail clearly
+}
+
 if (!pool) {
     pool = new Pool({
         connectionString: process.env.DATABASE_URL,
