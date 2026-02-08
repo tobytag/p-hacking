@@ -167,19 +167,33 @@ export default function ResearchDBApp() {
         setLoading(true);
         setError(null);
         try {
+            // Helper to safely fetch array data
+            const safeFetchData = async (endpoint) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/${endpoint}`);
+                    if (!res.ok) throw new Error(`Status ${res.status}`);
+                    const data = await res.json();
+                    // Ensure we always return an array
+                    return Array.isArray(data) ? data : [];
+                } catch (e) {
+                    console.error(`Failed to fetch ${endpoint}:`, e);
+                    return [];
+                }
+            };
+
             const [disciplines, institutions, journals, funding_agencies, authors, articles,
                 article_design, article_metrics, statistics, article_authors, article_funding] = await Promise.all([
-                    fetch(`${API_BASE_URL}/disciplines`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/institutions`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/journals`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/funding-agencies`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/authors`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/articles`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/article-design`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/article-metrics`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/statistics`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/article-authors`).then(r => r.json()),
-                    fetch(`${API_BASE_URL}/article-funding`).then(r => r.json())
+                    safeFetchData('disciplines'),
+                    safeFetchData('institutions'),
+                    safeFetchData('journals'),
+                    safeFetchData('funding-agencies'),
+                    safeFetchData('authors'),
+                    safeFetchData('articles'),
+                    safeFetchData('article-design'),
+                    safeFetchData('article-metrics'),
+                    safeFetchData('statistics'),
+                    safeFetchData('article-authors'),
+                    safeFetchData('article-funding')
                 ]);
 
             setDb({
