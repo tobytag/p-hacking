@@ -684,9 +684,9 @@ export default function ResearchDBApp() {
                 if (match) cleanYear = parseInt(match[0]);
             }
 
-            // Use discipline from CSV if available, otherwise default to 'economics'
-            const disciplineValue = row[idx.discipline] || 'economics';
-            const disciplineId = slugify(disciplineValue);
+            // Use discipline from CSV if available, otherwise leave as null
+            const disciplineValue = row[idx.discipline];
+            const disciplineId = disciplineValue ? slugify(disciplineValue) : null;
 
             // Always add article to batch - API will handle duplicates with ON CONFLICT
             batchArticles.push({
@@ -1148,6 +1148,12 @@ export default function ResearchDBApp() {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ ...viewingItem, abstract: editData })
+                });
+            } else if (editingSection === 'discipline') {
+                await fetch(`${API_BASE_URL}/articles/${viewingItem.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...viewingItem, discipline_id: editData })
                 });
             }
 
@@ -1988,7 +1994,7 @@ export default function ResearchDBApp() {
                         <MenuBtn id="journals" label="Journals" icon={BookOpen} color="border-emerald-500" />
                         {/* <MenuBtn id="funding_agencies" label="Funding Agencies" icon={DollarSign} color="border-emerald-400" /> */}
                         <MenuBtn id="article_metrics" label="Article Metrics" icon={TrendingUp} color="border-amber-500" />
-                        <MenuBtn id="statistics" label="Statistics" icon={Binary} color="border-rose-500" />
+                        {/* <MenuBtn id="statistics" label="Statistics" icon={Binary} color="border-rose-500" /> */}
                     </nav>
                 </div>
 
@@ -2064,7 +2070,7 @@ export default function ResearchDBApp() {
                         )}
                     </header>
 
-                    <main className="p-8 max-w-7xl mx-auto">
+                    <main className="p-8 w-full">
                         {renderContent()}
                     </main>
 
@@ -2158,60 +2164,134 @@ export default function ResearchDBApp() {
                         {viewingItem && (
                             <div className="space-y-6">
                                 {/* Header Section */}
-                                <div className="border-b border-slate-100 pb-4">
-                                    <div className="flex flex-wrap items-center gap-2 mb-3">
-                                        <span className="px-2.5 py-1 bg-slate-800 text-white text-xs font-bold rounded uppercase tracking-wide">
-                                            {viewingItem.discipline_name || 'Discipline N/A'}
-                                        </span>
+                                <div className="border-b border-slate-200 pb-6">
+                                    <div className="flex flex-wrap items-center gap-3 mb-4">
+                                        {editingSection === 'discipline' ? (
+                                            <div className="flex items-center gap-2">
+                                                <select
+                                                    value={editData}
+                                                    onChange={(e) => setEditData(e.target.value)}
+                                                    className="px-3 py-1.5 bg-white border-2 border-blue-300 text-slate-800 text-sm font-semibold rounded-md uppercase tracking-wide focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                                                    size="1"
+                                                >
+                                                    <option value="">Select Discipline</option>
+                                                    {db.disciplines.map(d => (
+                                                        <option key={d.id} value={d.id}>{d.name}</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    onClick={() => setEditingSection(null)}
+                                                    className="p-2 bg-white rounded-md border border-slate-300 hover:bg-slate-50 text-slate-600 transition-colors shadow-sm"
+                                                    title="Cancel"
+                                                >
+                                                    <XCircle className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={handleSavePopupEdit}
+                                                    className="p-2 bg-blue-600 rounded-md text-white hover:bg-blue-700 transition-colors shadow-sm"
+                                                    title="Save"
+                                                >
+                                                    <Save className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <span className="px-3 py-1.5 bg-gradient-to-r from-slate-700 to-slate-800 text-white text-sm font-bold rounded-md uppercase tracking-wide shadow-sm">
+                                                    {viewingItem.discipline_name || 'Discipline N/A'}
+                                                </span>
+                                                <button
+                                                    onClick={() => handleStartEditSection('discipline')}
+                                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all"
+                                                    title="Edit discipline"
+                                                >
+                                                    <Edit2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
                                         {viewingItem.metrics?.isSolo && (
-                                            <span className="px-2.5 py-1 bg-indigo-600 text-white text-xs font-bold rounded uppercase tracking-wide flex items-center">
-                                                <User className="w-3 h-3 mr-1" /> Solo Author
+                                            <span className="px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white text-sm font-bold rounded-md uppercase tracking-wide flex items-center shadow-sm">
+                                                <User className="w-4 h-4 mr-1.5" /> Solo Author
                                             </span>
                                         )}
                                     </div>
 
-                                    <h2 className="text-2xl font-bold text-slate-900 leading-tight mb-2">
+                                    <h2 className="text-3xl font-bold text-slate-900 leading-tight mb-4">
                                         {viewingItem.title}
                                     </h2>
 
-                                    <div className="flex items-center space-x-3 text-sm text-slate-500">
-                                        <span className="flex items-center font-medium text-slate-700">
-                                            <BookOpen className="w-4 h-4 mr-1" />
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
+                                        <span className="flex items-center font-semibold text-slate-800">
+                                            <BookOpen className="w-4 h-4 mr-1.5" />
                                             {viewingItem.journal_details?.name || viewingItem.journal_id}
                                         </span>
-                                        <span>•</span>
-                                        <span>{viewingItem.publication_year || 'Year N/A'}</span>
+                                        <span className="text-slate-400">•</span>
+                                        <span className="font-medium">{viewingItem.publication_year || 'Year N/A'}</span>
                                         {viewingItem.doi && (
                                             <>
-                                                <span>•</span>
-                                                <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-xs">{viewingItem.doi}</span>
+                                                <span className="text-slate-400">•</span>
+                                                <a
+                                                    href={`https://doi.org/${viewingItem.doi}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="font-mono bg-slate-100 px-2.5 py-1 rounded-md text-xs hover:bg-slate-200 transition-colors border border-slate-200"
+                                                >
+                                                    {viewingItem.doi}
+                                                </a>
+                                            </>
+                                        )}
+                                        {viewingItem.url && (
+                                            <>
+                                                <span className="text-slate-400">•</span>
+                                                <a
+                                                    href={viewingItem.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                                                >
+                                                    <ExternalLink className="w-4 h-4 mr-1" />
+                                                    <span className="text-sm">View Article</span>
+                                                </a>
                                             </>
                                         )}
                                     </div>
 
-                                    <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100 relative">
+                                    <div className="mt-6 p-5 bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-xl border border-slate-200 relative shadow-sm">
                                         {editingSection === 'abstract' ? (
                                             <div>
                                                 <textarea
-                                                    className="w-full p-2 border border-blue-300 rounded text-sm text-slate-700"
+                                                    className="w-full p-3 border-2 border-blue-300 rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                     rows={6}
                                                     value={editData}
                                                     onChange={handleAbstractChange}
                                                 />
-                                                <div className="flex justify-end mt-2 space-x-2">
-                                                    <button onClick={() => setEditingSection(null)} className="px-3 py-1 text-xs bg-white border rounded">Cancel</button>
-                                                    <button onClick={handleSavePopupEdit} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Save Abstract</button>
+                                                <div className="flex justify-end mt-3 gap-2">
+                                                    <button
+                                                        onClick={() => setEditingSection(null)}
+                                                        className="px-4 py-2 text-sm bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors shadow-sm font-medium"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSavePopupEdit}
+                                                        className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm font-medium"
+                                                    >
+                                                        Save Abstract
+                                                    </button>
                                                 </div>
                                             </div>
                                         ) : (
                                             <>
                                                 <div className="flex justify-between items-start">
-                                                    <span className="absolute top-2 left-2 text-3xl text-slate-200 font-serif">"</span>
-                                                    <p className="text-sm text-slate-600 italic leading-relaxed pl-4 pr-8">
+                                                    <span className="absolute top-3 left-3 text-4xl text-slate-300 font-serif leading-none">"</span>
+                                                    <p className="text-sm text-slate-700 leading-relaxed pl-8 pr-10">
                                                         {viewingItem.abstract || "No abstract available."}
                                                     </p>
-                                                    <button onClick={() => handleStartEditSection('abstract')} className="text-slate-400 hover:text-blue-600">
-                                                        <Edit2 className="w-3 h-3" />
+                                                    <button
+                                                        onClick={() => handleStartEditSection('abstract')}
+                                                        className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all"
+                                                        title="Edit abstract"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
                                                     </button>
                                                 </div>
                                             </>
@@ -2380,78 +2460,210 @@ export default function ResearchDBApp() {
                                             )}
                                         </div>
 
-                                        <div className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                                            <table className="w-full text-sm text-left">
-                                                <thead className="bg-slate-50 text-xs text-slate-500 uppercase border-b border-slate-200">
-                                                    <tr>
-                                                        <th className="px-4 py-3 font-semibold text-slate-600">Test</th>
-                                                        <th className="px-4 py-3 font-semibold text-slate-600 text-right">Mu</th>
-                                                        <th className="px-4 py-3 font-semibold text-slate-600 text-right">SD</th>
-                                                        <th className="px-4 py-3 font-semibold text-slate-600 text-right">Coeff</th>
-                                                        <th className="px-4 py-3 font-semibold text-slate-600 text-right">P-Value</th>
-                                                        <th className="px-4 py-3 font-semibold text-slate-600 text-center">Sig.</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-100 bg-white">
-                                                    {editingSection === 'stats' ? (
-                                                        editData.map((stat, i) => (
-                                                            <tr key={i} className="hover:bg-slate-50">
-                                                                <td className="px-2 py-2">
-                                                                    <input name="test_name" value={stat.test_name || ''} onChange={(e) => handlePopupInputChange(e, i)} className="w-full text-xs p-1 border rounded" placeholder="Test" />
-                                                                </td>
-                                                                <td className="px-2 py-2">
-                                                                    <input name="mu" type="number" step="0.0001" value={stat.mu || ''} onChange={(e) => handlePopupInputChange(e, i)} className="w-full text-xs p-1 border rounded text-right" placeholder="Mu" />
-                                                                </td>
-                                                                <td className="px-2 py-2">
-                                                                    <input name="sd" type="number" step="0.0001" value={stat.sd || ''} onChange={(e) => handlePopupInputChange(e, i)} className="w-full text-xs p-1 border rounded text-right" placeholder="SD" />
-                                                                </td>
-                                                                <td className="px-2 py-2">
-                                                                    <input name="coefficient" type="number" step="0.0001" value={stat.coefficient || ''} onChange={(e) => handlePopupInputChange(e, i)} className="w-full text-xs p-1 border rounded text-right" placeholder="Coeff" />
-                                                                </td>
-                                                                <td className="px-2 py-2">
-                                                                    <input name="p_value_reported" type="number" step="0.0001" value={stat.p_value_reported || ''} onChange={(e) => handlePopupInputChange(e, i)} className="w-full text-xs p-1 border rounded text-right" placeholder="P-Val" />
-                                                                </td>
-                                                                <td className="px-4 py-2 text-center text-xs text-slate-400">
-                                                                    auto
-                                                                </td>
-                                                            </tr>
-                                                        ))
-                                                    ) : (
-                                                        viewingItem.stats_list && viewingItem.stats_list.length > 0 ? (
-                                                            viewingItem.stats_list.map((stat, i) => {
-                                                                const pVal = parseFloat(stat.p_value_reported);
-                                                                const isSig = !isNaN(pVal) && pVal < 0.05;
-                                                                const isHighSig = !isNaN(pVal) && pVal < 0.01;
+                                        <div className="space-y-4">
+                                            {editingSection === 'stats' ? (
+                                                editData.map((stat, i) => (
+                                                    <Card key={i} className="p-4 bg-white border-slate-200 shadow-sm">
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            {/* Test Name */}
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Test Name</label>
+                                                                <input
+                                                                    name="test_name"
+                                                                    value={stat.test_name || ''}
+                                                                    onChange={(e) => handlePopupInputChange(e, i)}
+                                                                    className="w-full text-sm p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                    placeholder="e.g., Treatment Effect"
+                                                                />
+                                                            </div>
 
-                                                                return (
-                                                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                                        <td className="px-4 py-2 font-medium text-slate-700">{stat.test_name || '-'}</td>
-                                                                        <td className="px-4 py-2 text-slate-600 font-mono text-xs text-right">{stat.mu || '-'}</td>
-                                                                        <td className="px-4 py-2 text-slate-600 font-mono text-xs text-right">{stat.sd || '-'}</td>
-                                                                        <td className="px-4 py-2 text-slate-600 font-mono text-xs text-right">{stat.coefficient || '-'}</td>
-                                                                        <td className="px-4 py-2 text-slate-600 font-mono text-xs text-right">{stat.p_value_reported || '-'}</td>
-                                                                        <td className="px-4 py-2 text-center">
-                                                                            {isHighSig ? (
-                                                                                <span className="inline-block px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded">***</span>
-                                                                            ) : isSig ? (
-                                                                                <span className="inline-block px-1.5 py-0.5 bg-green-50 text-green-600 text-[10px] font-bold rounded">**</span>
-                                                                            ) : (
-                                                                                <span className="text-slate-300 text-[10px]">ns</span>
-                                                                            )}
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })
-                                                        ) : (
-                                                            <tr>
-                                                                <td colSpan="6" className="px-4 py-12 text-center text-slate-400 italic">
-                                                                    No statistics recorded for this article.
-                                                                </td>
-                                                            </tr>
-                                                        )
-                                                    )}
-                                                </tbody>
-                                            </table>
+                                                            {/* Location */}
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Location in Text</label>
+                                                                <input
+                                                                    name="location_in_text"
+                                                                    value={stat.location_in_text || ''}
+                                                                    onChange={(e) => handlePopupInputChange(e, i)}
+                                                                    className="w-full text-sm p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                    placeholder="e.g., Table 2, Column 1"
+                                                                />
+                                                            </div>
+
+                                                            {/* Coefficient */}
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Coefficient</label>
+                                                                <input
+                                                                    name="coeff_reported"
+                                                                    type="number"
+                                                                    step="0.0001"
+                                                                    value={stat.coeff_reported || ''}
+                                                                    onChange={(e) => handlePopupInputChange(e, i)}
+                                                                    className="w-full text-sm p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                    placeholder="0.0000"
+                                                                />
+                                                            </div>
+
+                                                            {/* Standard Error */}
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Standard Error</label>
+                                                                <input
+                                                                    name="se_reported"
+                                                                    type="number"
+                                                                    step="0.0001"
+                                                                    value={stat.se_reported || ''}
+                                                                    onChange={(e) => handlePopupInputChange(e, i)}
+                                                                    className="w-full text-sm p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                    placeholder="0.0000"
+                                                                />
+                                                            </div>
+
+                                                            {/* P-Value */}
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">P-Value</label>
+                                                                <input
+                                                                    name="p_value_reported"
+                                                                    type="number"
+                                                                    step="0.0001"
+                                                                    value={stat.p_value_reported || ''}
+                                                                    onChange={(e) => handlePopupInputChange(e, i)}
+                                                                    className="w-full text-sm p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                    placeholder="0.0000"
+                                                                />
+                                                            </div>
+
+                                                            {/* Stars */}
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Stars Reported</label>
+                                                                <input
+                                                                    name="stars_reported"
+                                                                    type="text"
+                                                                    value={stat.stars_reported || ''}
+                                                                    onChange={(e) => handlePopupInputChange(e, i)}
+                                                                    className="w-full text-sm p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                    placeholder="e.g., ***"
+                                                                />
+                                                            </div>
+
+                                                            {/* Z-Score */}
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Z-Score</label>
+                                                                <input
+                                                                    name="z_score"
+                                                                    type="number"
+                                                                    step="0.0001"
+                                                                    value={stat.z_score || ''}
+                                                                    onChange={(e) => handlePopupInputChange(e, i)}
+                                                                    className="w-full text-sm p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                    placeholder="0.0000"
+                                                                />
+                                                            </div>
+
+                                                            {/* Distance to Threshold */}
+                                                            <div>
+                                                                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Distance to 0.05</label>
+                                                                <input
+                                                                    name="distance_to_threshold"
+                                                                    type="number"
+                                                                    step="0.0001"
+                                                                    value={stat.distance_to_threshold || ''}
+                                                                    onChange={(e) => handlePopupInputChange(e, i)}
+                                                                    className="w-full text-sm p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                    placeholder="0.0000"
+                                                                />
+                                                            </div>
+
+                                                            {/* Just Significant Checkbox */}
+                                                            <div className="flex items-center">
+                                                                <label className="flex items-center space-x-2 cursor-pointer">
+                                                                    <input
+                                                                        name="is_just_significant"
+                                                                        type="checkbox"
+                                                                        checked={stat.is_just_significant || false}
+                                                                        onChange={(e) => handlePopupInputChange(e, i)}
+                                                                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                                                                    />
+                                                                    <span className="text-sm font-medium text-slate-700">Just Significant?</span>
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                    </Card>
+                                                ))
+                                            ) : (
+                                                viewingItem.stats_list && viewingItem.stats_list.length > 0 ? (
+                                                    viewingItem.stats_list.map((stat, i) => (
+                                                        <Card key={i} className="p-4 bg-slate-50 border-slate-200">
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+                                                                {/* Test Name */}
+                                                                <div>
+                                                                    <span className="text-xs font-semibold text-slate-500 uppercase">Test Name</span>
+                                                                    <p className="text-sm font-medium text-slate-800 mt-1">{stat.test_name || '-'}</p>
+                                                                </div>
+
+                                                                {/* Location */}
+                                                                <div>
+                                                                    <span className="text-xs font-semibold text-slate-500 uppercase">Location</span>
+                                                                    <p className="text-sm text-slate-700 mt-1">{stat.location_in_text || '-'}</p>
+                                                                </div>
+
+                                                                {/* Coefficient */}
+                                                                <div>
+                                                                    <span className="text-xs font-semibold text-slate-500 uppercase">Coefficient</span>
+                                                                    <p className="text-sm font-mono text-slate-800 mt-1">{stat.coeff_reported || '-'}</p>
+                                                                </div>
+
+                                                                {/* Standard Error */}
+                                                                <div>
+                                                                    <span className="text-xs font-semibold text-slate-500 uppercase">Standard Error</span>
+                                                                    <p className="text-sm font-mono text-slate-800 mt-1">{stat.se_reported || '-'}</p>
+                                                                </div>
+
+                                                                {/* P-Value */}
+                                                                <div>
+                                                                    <span className="text-xs font-semibold text-slate-500 uppercase">P-Value</span>
+                                                                    <p className="text-sm font-mono text-slate-800 mt-1">{stat.p_value_reported || '-'}</p>
+                                                                </div>
+
+                                                                {/* Stars */}
+                                                                <div>
+                                                                    <span className="text-xs font-semibold text-slate-500 uppercase">Stars</span>
+                                                                    <p className="text-sm font-medium text-slate-800 mt-1">{stat.stars_reported || '-'}</p>
+                                                                </div>
+
+                                                                {/* Z-Score */}
+                                                                <div>
+                                                                    <span className="text-xs font-semibold text-slate-500 uppercase">Z-Score</span>
+                                                                    <p className="text-sm font-mono text-slate-800 mt-1">{stat.z_score || '-'}</p>
+                                                                </div>
+
+                                                                {/* Distance to Threshold */}
+                                                                <div>
+                                                                    <span className="text-xs font-semibold text-slate-500 uppercase">Distance to 0.05</span>
+                                                                    <p className="text-sm font-mono text-slate-800 mt-1">{stat.distance_to_threshold || '-'}</p>
+                                                                </div>
+
+                                                                {/* Just Significant */}
+                                                                <div>
+                                                                    <span className="text-xs font-semibold text-slate-500 uppercase">Just Significant?</span>
+                                                                    <div className="mt-1">
+                                                                        {stat.is_just_significant ? (
+                                                                            <span className="inline-flex items-center px-2.5 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-md">
+                                                                                <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                                                                                Yes
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-sm text-slate-400">No</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </Card>
+                                                    ))
+                                                ) : (
+                                                    <div className="py-12 text-center text-slate-400 italic border border-dashed border-slate-300 rounded-lg">
+                                                        No statistics recorded for this article.
+                                                    </div>
+                                                )
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -2472,6 +2684,6 @@ export default function ResearchDBApp() {
                 variant="danger"
             />
             <ToastContainer toasts={toasts} removeToast={removeToast} />
-        </div>
+        </div >
     );
 }

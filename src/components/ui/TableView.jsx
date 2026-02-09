@@ -42,7 +42,7 @@ export default function TableView({
     const someSelected = selectedRows.size > 0 && selectedRows.size < data.length;
 
     return (
-        <Card className="flex flex-col h-[600px]">
+        <Card className="flex flex-col h-[calc(100vh-12rem)]">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
                 <div className="flex justify-between items-center mb-1">
                     <div>
