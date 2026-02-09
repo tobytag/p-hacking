@@ -122,6 +122,7 @@ export default function ResearchDBApp() {
     const [filterYear, setFilterYear] = useState('');
     const [filterDiscipline, setFilterDiscipline] = useState('');
     const [filterMethod, setFilterMethod] = useState('');
+    const [filterEmpirical, setFilterEmpirical] = useState(null); // null = all, true = empirical only, false = non-empirical only
 
     // Author Management for Articles
     const [articleAuthors, setArticleAuthors] = useState([]);
@@ -273,6 +274,7 @@ export default function ResearchDBApp() {
                 institutions_list: [...new Map(composite.authors_list.map(a => [a.current_institution_id, { id: a.current_institution_id, name: a.institution_name }])).values()].filter(i => i.name),
                 design_method: composite.design_details ? composite.design_details.primary_method : null,
                 design_data: composite.design_details ? composite.design_details.data_type : null,
+                is_empirical: composite.design_details ? composite.design_details.is_empirical : false,
                 stats_list: composite.stats_list,
                 max_z_score: composite.max_z_score,
                 discipline_name: composite.discipline_name
@@ -304,8 +306,13 @@ export default function ResearchDBApp() {
             filtered = filtered.filter(article => article.design_method === filterMethod);
         }
 
+        // Apply empirical filter
+        if (filterEmpirical !== null) {
+            filtered = filtered.filter(article => article.is_empirical === filterEmpirical);
+        }
+
         return filtered;
-    }, [db, searchQuery, filterYear, filterDiscipline, filterMethod]);
+    }, [db, searchQuery, filterYear, filterDiscipline, filterMethod, filterEmpirical]);
 
     // Merge Authors with Relations for the "Authors" Tab
     const authorsViewData = useMemo(() => {
@@ -1774,6 +1781,7 @@ export default function ResearchDBApp() {
                             { header: 'Title', accessor: 'title', render: (row) => <div className="max-w-md truncate font-medium text-slate-800" title={row.title}>{row.title}</div> },
                             { header: 'Year', accessor: 'publication_year' },
                             { header: 'Discipline', accessor: 'discipline_name', render: (row) => <span className="uppercase text-xs font-bold text-slate-500">{row.discipline_name}</span> },
+                            { header: 'Empirical', accessor: 'is_empirical', render: (row) => row.is_empirical ? <Chip color="bg-green-50 text-green-700">Yes</Chip> : <Chip color="bg-slate-50 text-slate-500">No</Chip> },
                             { header: 'Method', accessor: 'design_method', render: (row) => row.design_method ? <Chip color="bg-blue-50 text-blue-700">{row.design_method}</Chip> : <span className="text-slate-300">-</span> },
                             { header: 'Max Z-Score', accessor: 'max_z_score', render: (row) => <span className="font-mono text-xs">{row.max_z_score > 0 ? row.max_z_score : '-'}</span> }
                         ]}
@@ -2053,13 +2061,34 @@ export default function ResearchDBApp() {
                                             <option key={method} value={method}>{method}</option>
                                         ))}
                                 </select>
-                                {(searchQuery || filterYear || filterDiscipline || filterMethod) && (
+                                <button
+                                    onClick={() => {
+                                        if (filterEmpirical === null) {
+                                            setFilterEmpirical(true);
+                                        } else if (filterEmpirical === true) {
+                                            setFilterEmpirical(false);
+                                        } else {
+                                            setFilterEmpirical(null);
+                                        }
+                                    }}
+                                    className={`px-3 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 transition-colors ${filterEmpirical === null
+                                            ? 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                                            : filterEmpirical === true
+                                                ? 'border-green-500 bg-green-50 text-green-700 font-medium'
+                                                : 'border-red-500 bg-red-50 text-red-700 font-medium'
+                                        }`}
+                                    title="Toggle empirical filter: All → Empirical Only → Non-Empirical Only → All"
+                                >
+                                    {filterEmpirical === null ? 'Empirical' : filterEmpirical ? '✓ Empirical' : '✗ Non-Empirical'}
+                                </button>
+                                {(searchQuery || filterYear || filterDiscipline || filterMethod || filterEmpirical !== null) && (
                                     <button
                                         onClick={() => {
                                             setSearchQuery('');
                                             setFilterYear('');
                                             setFilterDiscipline('');
                                             setFilterMethod('');
+                                            setFilterEmpirical(null);
                                         }}
                                         className="px-3 py-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
                                     >
