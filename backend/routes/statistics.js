@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
     const {
         article_id, test_name, location_in_text, coeff_reported, se_reported,
-        p_value_reported, stars_reported, is_just_significant, distance_to_threshold
+        p_value_reported, stars_reported, is_just_significant, distance_to_threshold, t_value
     } = req.body;
 
     try {
@@ -35,10 +35,10 @@ router.post('/', async (req, res) => {
         // Insert the new record
         const result = await pool.query(
             `INSERT INTO statistics (article_id, test_name, location_in_text, coeff_reported, se_reported, 
-       p_value_reported, stars_reported, is_just_significant, distance_to_threshold)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+       p_value_reported, stars_reported, is_just_significant, distance_to_threshold, t_value)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
             [article_id, test_name, location_in_text, coeff_reported, se_reported,
-                p_value_reported, stars_reported, is_just_significant || false, distance_to_threshold]
+                p_value_reported, stars_reported, is_just_significant || false, distance_to_threshold, t_value]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -49,17 +49,17 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
     const {
         test_name, location_in_text, coeff_reported, se_reported,
-        p_value_reported, stars_reported, is_just_significant, distance_to_threshold
+        p_value_reported, stars_reported, is_just_significant, distance_to_threshold, t_value
     } = req.body;
 
     try {
         const result = await pool.query(
             `UPDATE statistics SET test_name = $1, location_in_text = $2, coeff_reported = $3, 
        se_reported = $4, p_value_reported = $5, stars_reported = $6, 
-       is_just_significant = $7, distance_to_threshold = $8
-       WHERE id = $9 RETURNING *`,
+       is_just_significant = $7, distance_to_threshold = $8, t_value = $9
+       WHERE id = $10 RETURNING *`,
             [test_name, location_in_text, coeff_reported, se_reported,
-                p_value_reported, stars_reported, is_just_significant, distance_to_threshold, req.params.id]
+                p_value_reported, stars_reported, is_just_significant, distance_to_threshold, t_value, req.params.id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
         res.json(result.rows[0]);
@@ -72,6 +72,31 @@ router.delete('/:id', async (req, res) => {
     try {
         await pool.query('DELETE FROM statistics WHERE id = $1', [req.params.id]);
         res.json({ message: 'Deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Duplicate a statistics record
+router.post('/:id/duplicate', async (req, res) => {
+    try {
+        // Get the original record
+        const original = await pool.query('SELECT * FROM statistics WHERE id = $1', [req.params.id]);
+        if (original.rows.length === 0) {
+            return res.status(404).json({ error: 'Statistics record not found' });
+        }
+
+        const stat = original.rows[0];
+
+        // Create a duplicate with the same values
+        const result = await pool.query(
+            `INSERT INTO statistics (article_id, test_name, location_in_text, coeff_reported, se_reported, 
+       p_value_reported, stars_reported, is_just_significant, distance_to_threshold, t_value)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+            [stat.article_id, stat.test_name, stat.location_in_text, stat.coeff_reported, stat.se_reported,
+                stat.p_value_reported, stat.stars_reported, stat.is_just_significant, stat.distance_to_threshold, stat.t_value]
+        );
+        res.status(201).json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

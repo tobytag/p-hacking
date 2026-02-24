@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { MoreVertical, Eye, Edit2, Trash2 } from 'lucide-react';
+import { MoreVertical, Eye, Edit2, Trash2, Copy } from 'lucide-react';
 
-export default function RowActions({ onEdit, onDelete, onView }) {
+export default function RowActions({ onEdit, onDelete, onView, onDuplicate }) {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef(null);
 
@@ -42,6 +42,15 @@ export default function RowActions({ onEdit, onDelete, onView }) {
                         >
                             <Edit2 className="w-3 h-3 mr-2" />
                             Edit
+                        </button>
+                    )}
+                    {onDuplicate && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setIsOpen(false); onDuplicate(); }}
+                            className="w-full px-4 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-purple-600 flex items-center"
+                        >
+                            <Copy className="w-3 h-3 mr-2" />
+                            Duplicate
                         </button>
                     )}
                     {onDelete && (

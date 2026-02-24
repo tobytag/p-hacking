@@ -51,6 +51,8 @@ import TableView from './ui/TableView';
 import ToastContainer, { useToast } from './ui/ToastContainer';
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+console.log('🔧 DEBUG: API_BASE_URL =', API_BASE_URL);
+console.log('🔧 DEBUG: import.meta.env.VITE_API_URL =', import.meta.env.VITE_API_URL);
 
 const SuccessModal = ({ isOpen, onClose, message }) => {
     if (!isOpen) return null;
@@ -117,12 +119,18 @@ export default function ResearchDBApp() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Search and Filter States
+    // Search and Filter States - Articles
     const [searchQuery, setSearchQuery] = useState('');
     const [filterYear, setFilterYear] = useState('');
     const [filterDiscipline, setFilterDiscipline] = useState('');
     const [filterMethod, setFilterMethod] = useState('');
     const [filterEmpirical, setFilterEmpirical] = useState(null); // null = all, true = empirical only, false = non-empirical only
+
+    // Search and Filter States - Statistics
+    const [statisticsSearchQuery, setStatisticsSearchQuery] = useState('');
+    const [statisticsSortBy, setStatisticsSortBy] = useState('year-desc');
+    const [statisticsFilterYear, setStatisticsFilterYear] = useState('');
+    const [statisticsFilterDiscipline, setStatisticsFilterDiscipline] = useState('');
 
     // Author Management for Articles
     const [articleAuthors, setArticleAuthors] = useState([]);
@@ -171,13 +179,17 @@ export default function ResearchDBApp() {
             // Helper to safely fetch array data
             const safeFetchData = async (endpoint) => {
                 try {
-                    const res = await fetch(`${API_BASE_URL}/${endpoint}`);
+                    const url = `${API_BASE_URL}/${endpoint}`;
+                    console.log(`🔗 Fetching: ${url}`);
+                    const res = await fetch(url);
+                    console.log(`📦 Response for ${endpoint}: ${res.status} ${res.statusText}`);
                     if (!res.ok) throw new Error(`Status ${res.status}`);
                     const data = await res.json();
+                    console.log(`✅ ${endpoint}: ${Array.isArray(data) ? data.length : 'N/A'} items`);
                     // Ensure we always return an array
                     return Array.isArray(data) ? data : [];
                 } catch (e) {
-                    console.error(`Failed to fetch ${endpoint}:`, e);
+                    console.error(`❌ Failed to fetch ${endpoint}:`, e);
                     return [];
                 }
             };
@@ -336,6 +348,63 @@ export default function ResearchDBApp() {
             };
         });
     }, [db]);
+
+    // Enrich Statistics with Article & Author Info for the "Statistics" Tab
+    const statisticsViewData = useMemo(() => {
+        let enriched = db.statistics.map(stat => {
+            const article = db.articles.find(a => a.id === stat.article_id) || {};
+            const discipline = db.disciplines.find(d => d.id === article.discipline_id);
+            const articleAuthors = db.article_authors
+                .filter(aa => aa.article_id === stat.article_id)
+                .sort((a, b) => (a.author_order || 0) - (b.author_order || 0))
+                .map(aa => {
+                    const author = db.authors.find(a => a.id === aa.author_id);
+                    return author ? author.full_name : aa.author_id;
+                });
+
+            return {
+                ...stat,
+                article_title: article.title || 'Unknown',
+                article_year: article.publication_year || 9999,
+                discipline_name: discipline ? discipline.name : 'Unknown',
+                author_names: articleAuthors,
+                authors_string: articleAuthors.join(', ')
+            };
+        });
+
+        // Apply search filter
+        if (statisticsSearchQuery) {
+            const query = statisticsSearchQuery.toLowerCase();
+            enriched = enriched.filter(stat =>
+                stat.article_title?.toLowerCase().includes(query) ||
+                stat.test_name?.toLowerCase().includes(query) ||
+                stat.authors_string?.toLowerCase().includes(query)
+            );
+        }
+
+        // Apply year filter
+        if (statisticsFilterYear) {
+            enriched = enriched.filter(stat => stat.article_year === parseInt(statisticsFilterYear));
+        }
+
+        // Apply discipline filter
+        if (statisticsFilterDiscipline) {
+            enriched = enriched.filter(stat => stat.discipline_name === statisticsFilterDiscipline);
+        }
+
+        // Apply sorting
+        if (statisticsSortBy === 'year-desc') {
+            enriched.sort((a, b) => b.article_year - a.article_year);
+        } else if (statisticsSortBy === 'year-asc') {
+            enriched.sort((a, b) => a.article_year - b.article_year);
+        } else if (statisticsSortBy === 'title-asc') {
+            enriched.sort((a, b) => a.article_title.localeCompare(b.article_title));
+        } else if (statisticsSortBy === 'title-desc') {
+            enriched.sort((a, b) => b.article_title.localeCompare(a.article_title));
+        }
+
+        return enriched;
+    }, [db, statisticsSearchQuery, statisticsFilterYear, statisticsFilterDiscipline, statisticsSortBy]);
 
     // --- DASHBOARD CALCULATIONS ---
     const dashboardStats = useMemo(() => {
@@ -565,6 +634,7 @@ export default function ResearchDBApp() {
             { name: 'coeff_reported', label: 'Coefficient', type: 'number', step: '0.0001' },
             { name: 'se_reported', label: 'Standard Error', type: 'number', step: '0.0001' },
             { name: 'p_value_reported', label: 'P-Value', type: 'number', step: '0.0001' },
+            { name: 't_value', label: 'T-Value', type: 'number', step: '0.0001' },
             { name: 'stars_reported', label: 'Stars', type: 'text', placeholder: '***' },
             { name: 'is_just_significant', label: 'Just Significant?', type: 'checkbox' },
             { name: 'distance_to_threshold', label: 'Distance to 0.05', type: 'number', step: '0.0001' }
@@ -1032,6 +1102,37 @@ export default function ResearchDBApp() {
             }
         });
         setShowConfirmModal(true);
+    };
+
+    const handleDuplicate = async (item) => {
+        if (activeTab !== 'statistics') {
+            showError('Duplication is only available for statistics');
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/statistics/${item.id}/duplicate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Status ${response.status}`);
+            }
+
+            const newStat = await response.json();
+            await fetchAllData();
+            
+            // Open the edit modal for the new duplicated record
+            setFormData({ ...newStat });
+            setEditingItem(newStat);
+            setIsModalOpen(true);
+            
+            showSuccess(`Statistics record duplicated! ID: ${newStat.id}`);
+        } catch (err) {
+            console.error('Error duplicating:', err);
+            showError('Error duplicating record: ' + err.message);
+        }
     };
 
     const handleBulkDelete = async (articleIds) => {
@@ -1603,7 +1704,8 @@ export default function ResearchDBApp() {
         onEdit: handleEdit,
         onDelete: handleDelete,
         onView: (activeTab === 'articles') ? handleViewDetails : undefined,
-        onDownload: activeTab === 'articles' ? handleDownloadAll : undefined
+        onDownload: activeTab === 'articles' ? handleDownloadAll : undefined,
+        onDuplicate: (activeTab === 'statistics') ? handleDuplicate : undefined
     };
 
     const renderContent = () => {
@@ -1858,24 +1960,59 @@ export default function ResearchDBApp() {
                 return (
                     <TableView
                         {...commonProps}
-                        title="Statistics"
-                        description="One-to-Many: P-hacking evidence"
-                        data={db.statistics}
+                        title="Statistics & Test Results"
+                        description="One-to-Many: Multiple test results per article. Search by paper, author, year. Filter by discipline. Sort alphabetically or by year."
+                        data={statisticsViewData}
                         columns={[
-                            { header: 'ID', accessor: 'id' },
-                            { header: 'Article', accessor: 'article_id' },
-                            { header: 'Test Name', accessor: 'test_name' },
-                            { header: 'Location', accessor: 'location_in_text' },
-                            { header: 'Coefficient', accessor: 'coeff_reported' },
-                            { header: 'SE', accessor: 'se_reported' },
-                            { header: 'P-Value', accessor: 'p_value_reported' },
-                            { header: 'Stars', accessor: 'stars_reported' },
-                            { header: 'Z-Score', accessor: 'z_score' },
+                            { header: 'ID', accessor: 'id', render: (row) => <span className="font-mono text-xs text-slate-500">{row.id}</span> },
+                            { header: 'Article Title', accessor: 'article_title', render: (row) => <div className="max-w-sm truncate font-medium text-slate-800" title={row.article_title}>{row.article_title}</div> },
+                            { header: 'Year', accessor: 'article_year', render: (row) => <span className="font-semibold text-slate-700">{row.article_year !== 9999 ? row.article_year : '-'}</span> },
+                            { header: 'Discipline', accessor: 'discipline_name', render: (row) => <span className="uppercase text-xs font-bold text-slate-500">{row.discipline_name}</span> },
+                            { header: 'Authors', accessor: 'authors_string', render: (row) => <div className="max-w-xs truncate text-slate-600 text-sm">{row.authors_string || '-'}</div> },
+                            { header: 'Test Name', accessor: 'test_name', render: (row) => <span className="font-medium text-slate-700">{row.test_name || '(Pending Input)'}</span> },
+                            { header: 'Location', accessor: 'location_in_text', render: (row) => <span className="text-xs text-slate-600">{row.location_in_text || '-'}</span> },
+                            { header: 'Coefficient', accessor: 'coeff_reported', render: (row) => {
+                                const val = row.coeff_reported;
+                                if (val === null || val === undefined || val === '') return <span className="font-mono text-sm">-</span>;
+                                const num = parseFloat(val);
+                                return isNaN(num) ? <span className="font-mono text-sm">-</span> : <span className="font-mono text-sm">{num.toFixed(4)}</span>;
+                            }},
+                            { header: 'SE', accessor: 'se_reported', render: (row) => {
+                                const val = row.se_reported;
+                                if (val === null || val === undefined || val === '') return <span className="font-mono text-sm">-</span>;
+                                const num = parseFloat(val);
+                                return isNaN(num) ? <span className="font-mono text-sm">-</span> : <span className="font-mono text-sm">{num.toFixed(4)}</span>;
+                            }},
+                            { header: 'P-Value', accessor: 'p_value_reported', render: (row) => {
+                                const val = row.p_value_reported;
+                                if (val === null || val === undefined || val === '') return <span className="font-mono text-sm">-</span>;
+                                const num = parseFloat(val);
+                                return isNaN(num) ? <span className="font-mono text-sm">-</span> : <span className="font-mono text-sm font-bold">{num.toFixed(4)}</span>;
+                            }},
+                            { header: 'Stars', accessor: 'stars_reported', render: (row) => <span className="font-bold text-slate-800">{row.stars_reported || '-'}</span> },
+                            { header: 'Z-Score', accessor: 'z_score', render: (row) => {
+                                const val = row.z_score;
+                                if (val === null || val === undefined || val === '') return <span className="font-mono text-sm">-</span>;
+                                const num = parseFloat(val);
+                                return isNaN(num) ? <span className="font-mono text-sm">-</span> : <span className="font-mono text-sm font-semibold">{num.toFixed(3)}</span>;
+                            }},
+                            { header: 'T-Value', accessor: 't_value', render: (row) => {
+                                const val = row.t_value;
+                                if (val === null || val === undefined || val === '') return <span className="font-mono text-sm">-</span>;
+                                const num = parseFloat(val);
+                                return isNaN(num) ? <span className="font-mono text-sm">-</span> : <span className="font-mono text-sm font-semibold">{num.toFixed(3)}</span>;
+                            }},
                             {
                                 header: 'Just Sig?',
                                 accessor: 'is_just_significant',
-                                render: (row) => row.is_just_significant ? '⚠️ Yes' : 'No'
-                            }
+                                render: (row) => row.is_just_significant ? <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded">⚠️ YES</span> : <span className="text-slate-400">No</span>
+                            },
+                            { header: 'Distance to 0.05', accessor: 'distance_to_threshold', render: (row) => {
+                                const val = row.distance_to_threshold;
+                                if (val === null || val === undefined || val === '') return <span className="font-mono text-sm">-</span>;
+                                const num = parseFloat(val);
+                                return isNaN(num) ? <span className="font-mono text-sm">-</span> : <span className="font-mono text-sm">{num.toFixed(4)}</span>;
+                            }}
                         ]}
                     />
                 );
@@ -2002,7 +2139,7 @@ export default function ResearchDBApp() {
                         <MenuBtn id="journals" label="Journals" icon={BookOpen} color="border-emerald-500" />
                         {/* <MenuBtn id="funding_agencies" label="Funding Agencies" icon={DollarSign} color="border-emerald-400" /> */}
                         <MenuBtn id="article_metrics" label="Article Metrics" icon={TrendingUp} color="border-amber-500" />
-                        {/* <MenuBtn id="statistics" label="Statistics" icon={Binary} color="border-rose-500" /> */}
+                        <MenuBtn id="statistics" label="Statistics" icon={Binary} color="border-rose-500" />
                     </nav>
                 </div>
 
@@ -2095,6 +2232,58 @@ export default function ResearchDBApp() {
                                         Clear All
                                     </button>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Search and Filter Bar - Statistics Tab */}
+                        {activeTab === 'statistics' && (
+                            <div className="flex flex-col gap-3">
+                                <div className="flex gap-2 items-center bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                    <div className="flex-1">
+                                        <input
+                                            type="text"
+                                            placeholder="Search by article title, author, test name..."
+                                            value={statisticsSearchQuery}
+                                            onChange={(e) => setStatisticsSearchQuery(e.target.value)}
+                                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                        />
+                                    </div>
+                                    <select
+                                        value={statisticsFilterYear}
+                                        onChange={(e) => setStatisticsFilterYear(e.target.value)}
+                                        className="px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                    >
+                                        <option value="">Year</option>
+                                        {[...new Set(db.statistics.map(s => {
+                                            const article = db.articles.find(a => a.id === s.article_id);
+                                            return article?.publication_year;
+                                        }).filter(Boolean))].sort((a, b) => b - a).map(year => (
+                                            <option key={year} value={year}>{year}</option>
+                                        ))}
+                                    </select>
+                                    <select
+                                        value={statisticsFilterDiscipline}
+                                        onChange={(e) => setStatisticsFilterDiscipline(e.target.value)}
+                                        className="px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                    >
+                                        <option value="">Discipline</option>
+                                        {db.disciplines.map(d => (
+                                            <option key={d.id} value={d.name}>{d.name}</option>
+                                        ))}
+                                    </select>
+                                    {(statisticsSearchQuery || statisticsFilterYear || statisticsFilterDiscipline) && (
+                                        <button
+                                            onClick={() => {
+                                                setStatisticsSearchQuery('');
+                                                setStatisticsFilterYear('');
+                                                setStatisticsFilterDiscipline('');
+                                            }}
+                                            className="px-3 py-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </header>

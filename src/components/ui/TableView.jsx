@@ -5,7 +5,7 @@ import RowActions from './RowActions';
 
 export default function TableView({
     title, columns, data, emptyMessage, description,
-    onAdd, onEdit, onDelete, onView, onDownload,
+    onAdd, onEdit, onDelete, onView, onDownload, onDuplicate,
     enableMultiSelect = false, onBulkDelete
 }) {
     const [selectedRows, setSelectedRows] = useState(new Set());
@@ -192,6 +192,7 @@ export default function TableView({
                                             <RowActions
                                                 onView={() => onView && onView(row)}
                                                 onEdit={() => onEdit && onEdit(row)}
+                                                onDuplicate={() => onDuplicate && onDuplicate(row)}
                                                 onDelete={() => onDelete && onDelete(row)}
                                             />
                                         </td>
